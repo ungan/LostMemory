@@ -40,6 +40,7 @@ namespace LostMemory.Networking.Session
         };
 
         public static string AccessToken { get; private set; }
+        public static string RefreshToken { get; private set; }
         public static long MyUserId { get; private set; }
         public static string MyNickname { get; private set; }
 

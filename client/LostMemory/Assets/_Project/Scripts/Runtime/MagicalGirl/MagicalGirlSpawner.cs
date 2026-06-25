@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using LostMemory.Combat;
 using LostMemory.Relics;
 using LostMemory.TestKhi;
+using LostMemory.VFX;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
