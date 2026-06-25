@@ -125,6 +125,17 @@ combat-damage-refactor
 - 가능하면 `KhiMeteor` 계산 경로 변경
 - 기존 final damage와 crit 결과를 최대한 동일하게 유지
 
+### 현재 구현 상태 (2026-06-25)
+
+- `KhiMeleeComboController`의 검 콤보 데미지/crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- `KhiBowController`의 단발/연사 화살 데미지/crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- `KhiStaffController`의 bolt/fireball 데미지/crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- `KhiMeteor`의 폭발 데미지/crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- 기존 `Health.Damage`, `PlayerDamageRelay`, projectile movement, visual-only clone, popup 호출 흐름은 변경하지 않았다.
+- Unity batchmode compile 결과: return code 0.
+- `CombatDamageResolverAutomation` 실행 결과: 5개 계산 체크 PASS, return code 0.
+- 남은 확인: Unity Editor에서 검/활/스태프/메테오 실제 플레이 smoke test.
+
 ### 제외
 
 - damage apply 방식 변경

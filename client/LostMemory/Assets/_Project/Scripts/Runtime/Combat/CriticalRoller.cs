@@ -17,12 +17,17 @@ namespace LostMemory.Combat
 
         public static float Roll(PlayerStatModifierContainer stats, float baseDamage, out bool wasCritical)
         {
+            return Roll(stats, baseDamage, Random.value, out wasCritical);
+        }
+
+        public static float Roll(PlayerStatModifierContainer stats, float baseDamage, float rollValue, out bool wasCritical)
+        {
             wasCritical = false;
             if (baseDamage <= 0f) return baseDamage;
 
             float chance = stats != null ? Mathf.Max(0f, stats.GetTotalMultiplier(StatId.Critical) - 1f) : 0f;
             if (chance <= 0f) return baseDamage;
-            float roll = Random.value;
+            float roll = Mathf.Clamp01(rollValue);
             if (roll >= chance) return baseDamage;
 
             float dmgBonus = DefaultCritDamageBonus

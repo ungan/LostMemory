@@ -8,12 +8,30 @@ namespace LostMemory.Combat
             CombatDamageRequest request,
             PlayerStatModifierContainer attackerStats = null)
         {
+            return Resolve(request, attackerStats, null);
+        }
+
+        public static CombatDamageResult Resolve(
+            CombatDamageRequest request,
+            PlayerStatModifierContainer attackerStats,
+            float criticalRollValue)
+        {
+            return Resolve(request, attackerStats, (float?)criticalRollValue);
+        }
+
+        private static CombatDamageResult Resolve(
+            CombatDamageRequest request,
+            PlayerStatModifierContainer attackerStats,
+            float? criticalRollValue)
+        {
             float damage = ResolveBaseDamage(request, attackerStats);
             bool wasCritical = false;
 
             if (request.CriticalPolicy == CriticalPolicy.RollEveryDamageTick)
             {
-                damage = CriticalRoller.Roll(attackerStats, damage, out wasCritical);
+                damage = criticalRollValue.HasValue
+                    ? CriticalRoller.Roll(attackerStats, damage, criticalRollValue.Value, out wasCritical)
+                    : CriticalRoller.Roll(attackerStats, damage, out wasCritical);
             }
 
             return new CombatDamageResult(
