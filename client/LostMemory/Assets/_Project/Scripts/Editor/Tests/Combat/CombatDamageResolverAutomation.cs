@@ -15,8 +15,9 @@ namespace LostMemory.Tests.Combat
             RunCase("Finisher", Resolve_WhenFinisherEnabled_AppliesFinisherAfterAttackPower);
             RunCase("CriticalSuccess", Resolve_WhenCriticalRollSucceeds_AppliesCriticalDamageBonus);
             RunCase("CriticalFail", Resolve_WhenCriticalRollFails_DoesNotApplyCriticalDamageBonus);
+            RunCase("DamageOverTime", Resolve_WhenDamageOverTimeTick_RollsCriticalWithoutAttackPowerAndSuppressesOnHit);
 
-            Debug.Log("[CombatDamageResolverAutomation] Passed 5 combat damage resolver checks.");
+            Debug.Log("[CombatDamageResolverAutomation] Passed 6 combat damage resolver checks.");
         }
 
         private static void RunCase(string name, Action test)
@@ -125,6 +126,31 @@ namespace LostMemory.Tests.Combat
 
                 AssertClose(100f, result.FinalDamage);
                 AssertFalse(result.WasCritical, "Expected non-critical result.");
+            });
+        }
+
+        private static void Resolve_WhenDamageOverTimeTick_RollsCriticalWithoutAttackPowerAndSuppressesOnHit()
+        {
+            WithStats(stats =>
+            {
+                stats.AddPermanent(StatId.AttackPower, 1f, "test");
+                stats.AddPermanent(StatId.Critical, 1f, "test");
+                CombatDamageRequest request = new CombatDamageRequest(
+                    10f,
+                    DamageSourceKind.DamageOverTime,
+                    2UL,
+                    sourceId: 100UL,
+                    tickIndex: 3,
+                    onHitPolicy: OnHitPolicy.Suppress,
+                    applyAttackPower: false);
+
+                CombatDamageResult result = CombatDamageResolver.Resolve(request, stats, 0f);
+
+                AssertClose(15f, result.FinalDamage);
+                AssertTrue(result.WasCritical, "Expected DOT tick critical result.");
+                AssertTrue(result.OnHitPolicy == OnHitPolicy.Suppress, "Expected DOT OnHit to be suppressed.");
+                AssertTrue(result.TickIndex == 3, "Expected DOT tick index to be preserved.");
+                AssertTrue(result.SourceId == 100UL, "Expected DOT source id to be preserved.");
             });
         }
 

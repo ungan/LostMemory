@@ -1,7 +1,9 @@
 using System.Collections;
+using LostMemory.Combat;
 using LostMemory.TestKhi;
 using LostMemory.VFX;
 using MoreMountains.TopDownEngine;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace LostMemory.Enemies
@@ -48,6 +50,11 @@ namespace LostMemory.Enemies
         private float _burnExpiresAt;
         private float _burnNextTickAt;
         private GameObject _burnInstigator;
+        private PlayerStatModifierContainer _burnAttackerStats;
+        private ulong _burnAttackerNetworkObjectId;
+        private ulong _burnTargetNetworkObjectId;
+        private ulong _burnSourceId;
+        private int _burnTickIndex;
 
         // CL-202: VFX 프리팹 참조 (OnHitEffectRegistry.EnsureVFXPrefabs 로 주입)
         private GameObject _freezeVFXPrefab;
@@ -173,6 +180,13 @@ namespace LostMemory.Enemies
             _burnExpiresAt = Time.time + duration;
             _burnNextTickAt = Time.time + 1f;        // 첫 틱은 1초 뒤
             _burnInstigator = instigator;
+            _burnAttackerStats = instigator != null
+                ? instigator.GetComponentInParent<PlayerStatModifierContainer>()
+                : null;
+            _burnAttackerNetworkObjectId = ResolveNetworkObjectId(instigator);
+            _burnTargetNetworkObjectId = ResolveNetworkObjectId(_health != null ? _health.gameObject : gameObject);
+            _burnSourceId = ResolveBurnSourceId(instigator);
+            _burnTickIndex = 0;
             RefreshActiveVisual();
         }
 
@@ -209,9 +223,24 @@ namespace LostMemory.Enemies
                 else if (Time.time >= _burnNextTickAt)
                 {
                     _burnNextTickAt = Time.time + 1f;
+                    _burnTickIndex++;
                     if (_health != null && _health.CurrentHealth > 0f)
                     {
-                        _health.Damage(_burnDamagePerTick, _burnInstigator, 0f, 0f, Vector3.zero);
+                        CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                            new CombatDamageRequest(
+                                _burnDamagePerTick,
+                                DamageSourceKind.DamageOverTime,
+                                _burnTargetNetworkObjectId,
+                                attackerNetworkObjectId: _burnAttackerNetworkObjectId,
+                                sourceId: _burnSourceId,
+                                tickIndex: _burnTickIndex,
+                                criticalPolicy: CriticalPolicy.RollEveryDamageTick,
+                                onHitPolicy: OnHitPolicy.Suppress,
+                                applyAttackPower: false,
+                                hitPoint: transform.position,
+                                weaponId: "Burn"),
+                            _burnAttackerStats);
+                        _health.Damage(damageResult.FinalDamage, _burnInstigator, 0f, 0f, Vector3.zero);
                     }
                 }
             }
@@ -223,6 +252,21 @@ namespace LostMemory.Enemies
         {
             return _burnInstigator != null
                 && KhiPlayerActionGate.IsBlocked(_burnInstigator.transform);
+        }
+
+        private static ulong ResolveNetworkObjectId(GameObject go)
+        {
+            if (go == null) return 0UL;
+            NetworkObject netObj = go.GetComponentInParent<NetworkObject>();
+            return netObj != null ? netObj.NetworkObjectId : 0UL;
+        }
+
+        private ulong ResolveBurnSourceId(GameObject instigator)
+        {
+            ulong instigatorId = ResolveNetworkObjectId(instigator);
+            if (instigatorId != 0UL) return instigatorId;
+            int rawId = instigator != null ? instigator.GetInstanceID() : GetInstanceID();
+            return (ulong)Mathf.Abs(rawId);
         }
 
         /// <summary>

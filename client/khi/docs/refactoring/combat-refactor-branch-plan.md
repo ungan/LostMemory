@@ -6,6 +6,7 @@
 - `combat-refactor-diagnosis.md`
 - `combat-refactor-plan.md`
 - `combat-damage-source-map.md`
+- `combat-damage-source-audit.md`
 
 ## 목적
 
@@ -42,8 +43,9 @@ combat-damage-refactor
 2. `refactor/combat-damage-resolver-weapons`
 3. `refactor/combat-damage-missing-sources`
 4. `refactor/combat-dot-damage-source`
-5. `refactor/combat-result-onhit-events`
-6. `refactor/weapon-runtime-entries`
+5. `refactor/combat-special-damage-sources`
+6. `refactor/combat-result-onhit-events`
+7. `refactor/weapon-runtime-entries`
 
 핵심 원칙:
 
@@ -56,6 +58,24 @@ combat-damage-refactor
 ```
 
 네트워크 relay, DOT, OnHit 이벤트, 무기 슬롯 구조를 한 브랜치에 섞지 않는다.
+
+### Audit Checkpoint (2026-06-25)
+
+`refactor/combat-damage-missing-sources` 완료 후에도 resolver를 통과하지 않는 player-origin damage source가 추가로 확인되었다.
+
+확인된 후보:
+
+- Burn DOT
+- Parry 반격 데미지
+- MagicalGirl projectile/AOE/fusion/fallback 데미지
+- Tarot Death 카드
+
+조정된 원칙:
+
+- `refactor/combat-dot-damage-source`는 Burn DOT만 처리한다.
+- Parry/MagicalGirl/Tarot은 `refactor/combat-special-damage-sources`로 분리한다.
+- 적/보스가 플레이어에게 주는 damage source는 현재 combat damage resolver 범위에서 제외한다.
+- 이미 resolver로 최종 damage를 계산한 뒤 `Health.Damage(...)`로 적용하는 코드는 누락으로 보지 않는다.
 
 ## 1. refactor/combat-damage-resolver-base
 
@@ -227,6 +247,27 @@ combat-damage-refactor
 
 Burn DOT를 host/server authoritative damage source로 정리하기 시작한다.
 
+### 현재 조정 상태 (2026-06-25)
+
+- `combat-damage-source-audit.md`를 통해 추가 누락 damage source를 확인했다.
+- 이번 브랜치에서는 Burn DOT만 처리한다.
+- Parry, MagicalGirl, Tarot은 `refactor/combat-special-damage-sources`로 분리한다.
+- `EnemyStatusEffect.cs`는 `git blame`상 송주헌 작성으로 보이지만, 기능 이력 기준으로는 김회인 구현 흐름에 속한다.
+- 이용호가 추가한 `KhiPlayerActionGate.IsBlocked` 기반 burn instigator block 보호 로직은 유지한다.
+
+### 현재 구현 상태 (2026-06-25)
+
+- `EnemyStatusEffect`의 Burn tick damage를 `CombatDamageResolver` 경로로 이동했다.
+- Burn DOT tick은 `DamageSourceKind.DamageOverTime`으로 분류한다.
+- Burn DOT tick은 `OnHitPolicy.Suppress`를 사용해 OnHit을 발동하지 않는다.
+- Burn DOT tick마다 `tickIndex`를 증가시켜 request에 포함한다.
+- Burn DOT source/attacker/target network object id를 가능한 범위에서 request에 보존한다.
+- 기존 `ApplyBurn` 호출부가 넘기던 damagePerTick 값을 유지하기 위해 DOT resolver request는 `applyAttackPower: false`로 처리한다.
+- 즉, 기존 AttackPower 반영 여부는 호출부 정책을 유지하고, DOT tick에서는 crit/critical damage만 resolver를 통해 적용한다.
+- popup/result event 공통화는 이번 브랜치에서 하지 않는다.
+- Unity batchmode compile 결과: `Tundra build success`, return code 0.
+- `CombatDamageResolverAutomation` 실행 결과: DamageOverTime 케이스 포함 6개 계산 체크 PASS, return code 0.
+
 ### 포함
 
 - DOT source id 설계
@@ -262,7 +303,48 @@ Burn DOT를 host/server authoritative damage source로 정리하기 시작한다
 
 높음. 현재 `EnemyStatusEffect`가 직접 `Health.Damage`를 호출하므로 구조 변경 폭이 크다.
 
-## 5. refactor/combat-result-onhit-events
+## 5. refactor/combat-special-damage-sources
+
+### 목표
+
+DOT 이후에도 남아 있는 특수 player-origin damage source를 resolver 경로로 이동한다.
+
+### 포함
+
+- `KhiParryDamageOnTouch` 반격 데미지 resolver 경유
+- `MagicalGirlProjectile` resolver 경유
+- `MagicalGirlAOE` tick damage resolver 경유
+- `MagicalGirlFusion` laser/global AOE resolver 경유
+- `MagicalGirlAI` fallback direct damage resolver 경유
+- `TarotCards.DeathCard`의 crit 정책 결정 및 resolver 경유 여부 확정
+
+### 제외
+
+- Burn DOT
+- 공통 OnHit result event 전면 도입
+- 무기 슬롯 구조 변경
+- 적/보스가 player에게 주는 damage source
+
+### 완료 조건
+
+- Parry 반격이 resolver를 통해 crit을 계산한다.
+- MagicalGirl 계열 damage source가 source kind와 정책을 명시한다.
+- Tarot Death 카드가 crit 대상인지 명확히 결정된다.
+- 특수 source가 DOT/OnHit/result event 작업과 섞이지 않는다.
+
+### 테스트
+
+- Parry 반격 crit 확인
+- MagicalGirl projectile crit 확인
+- MagicalGirl AOE tick crit 확인
+- MagicalGirl fusion laser/global AOE damage 확인
+- Tarot Death 카드 damage 정책 확인
+
+### 위험도
+
+중간 이상. MagicalGirl은 projectile sync, visual-only clone, owner action gate가 얽혀 있으므로 DOT와 분리한다.
+
+## 6. refactor/combat-result-onhit-events
 
 ### 목표
 
@@ -306,7 +388,7 @@ Burn DOT를 host/server authoritative damage source로 정리하기 시작한다
 
 높음. OnHit, popup, analytics, relic 효과가 얽힌다.
 
-## 6. refactor/weapon-runtime-entries
+## 7. refactor/weapon-runtime-entries
 
 ### 목표
 
