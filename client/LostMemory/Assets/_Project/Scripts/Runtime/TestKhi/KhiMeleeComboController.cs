@@ -334,13 +334,20 @@ namespace LostMemory.TestKhi
                 KhiAttackRequest sampleRequest = request;
                 sampleRequest.Origin = transform.position;
                 // CL-107: AttackPower multiplier (전사의끈/전투북 등) + FinisherDamage multiplier (분쇄의팔찌, 3타에만).
-                float attackMul = statContainer != null ? statContainer.GetTotalMultiplier(StatId.AttackPower) : 1f;
-                float finisherMul = (statContainer != null && step.comboStep == 3)
-                    ? statContainer.GetTotalMultiplier(StatId.FinisherDamage) : 1f;
-                float finalDamage = capturedBaseDamage * step.damageMultiplier * attackMul * finisherMul;
-
-                // 치명타 판정 — CriticalRoller 공통 유틸 (모든 무기 공유).
-                finalDamage = LostMemory.Combat.CriticalRoller.Roll(statContainer, finalDamage, out bool wasCritical);
+                CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                    new CombatDamageRequest(
+                        capturedBaseDamage * step.damageMultiplier,
+                        DamageSourceKind.Melee,
+                        0UL,
+                        sourceId: (ulong)request.SequenceId,
+                        applyAttackPower: true,
+                        applyFinisherDamage: step.comboStep == 3,
+                        hitDirection: sampleRequest.AimDirection,
+                        hitPoint: sampleRequest.Origin,
+                        weaponId: weaponData != null ? weaponData.name : null),
+                    statContainer);
+                float finalDamage = damageResult.FinalDamage;
+                bool wasCritical = damageResult.WasCritical;
                 int sampledHitCount = hitbox != null
                     ? hitbox.Sample(sampleRequest, step, capturedPostRotationOffset, finalDamage, _alreadyHitThisSwing, _hitsThisSample)
                     : 0;

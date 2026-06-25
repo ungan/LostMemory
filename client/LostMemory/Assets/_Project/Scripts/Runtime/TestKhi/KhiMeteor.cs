@@ -177,8 +177,17 @@ namespace LostMemory.TestKhi
             PlayerStatModifierContainer stats = attacker != null
                 ? attacker.GetComponentInParent<PlayerStatModifierContainer>() : null;
             // AttackPower 적용 — 평타 패턴 통일. 이전 누락분 fix.
-            float meteorAttackMul = stats != null ? stats.GetTotalMultiplier(StatId.AttackPower) : 1f;
-            damage = LostMemory.Combat.CriticalRoller.Roll(stats, damage * meteorAttackMul, out _wasCritical);
+            CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    damage,
+                    DamageSourceKind.Area,
+                    0UL,
+                    applyAttackPower: true,
+                    hitPoint: transform.position,
+                    weaponId: "Meteor"),
+                stats);
+            damage = damageResult.FinalDamage;
+            _wasCritical = damageResult.WasCritical;
             StartCoroutine(Sequence());
         }
 

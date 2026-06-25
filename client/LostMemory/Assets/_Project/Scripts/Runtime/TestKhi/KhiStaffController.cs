@@ -192,8 +192,18 @@ namespace LostMemory.TestKhi
 
             KhiArrowProjectile bolt = Instantiate(boltPrefab, spawnPos, Quaternion.identity);
             // AttackPower 적용 — 평타 패턴 통일. 이전 누락분 fix.
-            float boltAttackMul = statContainer != null ? statContainer.GetTotalMultiplier(StatId.AttackPower) : 1f;
-            float boltFinal = LostMemory.Combat.CriticalRoller.Roll(statContainer, boltDamage * boltAttackMul, out bool boltCrit);
+            CombatDamageResult boltDamageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    boltDamage,
+                    DamageSourceKind.Projectile,
+                    0UL,
+                    applyAttackPower: true,
+                    hitDirection: aimDir,
+                    hitPoint: spawnPos,
+                    weaponId: "StaffBolt"),
+                statContainer);
+            float boltFinal = boltDamageResult.FinalDamage;
+            bool boltCrit = boltDamageResult.WasCritical;
             bolt.Launch(aimDir, boltSpeed, boltFinal, gameObject, boltCrit);
             if (boltHomingTurnRate > 0f && boltHomingRadius > 0f)
             {
@@ -226,8 +236,18 @@ namespace LostMemory.TestKhi
 
             KhiArrowProjectile fireball = Instantiate(fireballPrefab, spawnPos, Quaternion.identity);
             // AttackPower 적용 — 평타 패턴 통일.
-            float fireAttackMul = statContainer != null ? statContainer.GetTotalMultiplier(StatId.AttackPower) : 1f;
-            float fireFinal = LostMemory.Combat.CriticalRoller.Roll(statContainer, fireballDamage * fireAttackMul, out bool fireCrit);
+            CombatDamageResult fireDamageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    fireballDamage,
+                    DamageSourceKind.Projectile,
+                    0UL,
+                    applyAttackPower: true,
+                    hitDirection: aimDir,
+                    hitPoint: spawnPos,
+                    weaponId: "StaffFireball"),
+                statContainer);
+            float fireFinal = fireDamageResult.FinalDamage;
+            bool fireCrit = fireDamageResult.WasCritical;
             fireball.Launch(aimDir, fireballSpeed, fireFinal, gameObject, fireCrit);
 
             _nextFireballAt = Time.time + fireballCooldown;
