@@ -71,6 +71,7 @@ namespace LostMemory.TestKhi
         private float _nextAllowedAt = -1f;
         private readonly HashSet<Health> _alreadyHit = new HashSet<Health>();
         private readonly List<Health> _hitsThisSample = new List<Health>(8);
+        private int _sequenceId;
 
         // 멀티 호환: 자기 플레이어 트리의 WeaponUpgradeService 캐시 (싱글톤 미사용).
         private LostMemory.Combat.WeaponUpgradeService _weaponUpgrade;
@@ -253,13 +254,23 @@ namespace LostMemory.TestKhi
         {
             // 데미지 계산 (KhiMeleeComboController.RunAttack 패턴 차용).
             // baseDamage 는 combo.WeaponData 기준 (단검 무기의 기본 데미지). teleportSlashStep 의 damageMultiplier 가 그 위에 곱해짐.
-            float attackMul = statContainer != null ? statContainer.GetTotalMultiplier(StatId.AttackPower) : 1f;
-            float finalDamage = combo.WeaponData.BaseDamage * step.damageMultiplier * attackMul;
+            CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    combo.WeaponData.BaseDamage * step.damageMultiplier,
+                    DamageSourceKind.Melee,
+                    0UL,
+                    sourceId: (ulong)(_sequenceId + 1),
+                    applyAttackPower: true,
+                    hitDirection: aimDir,
+                    hitPoint: transform.position,
+                    weaponId: combo.WeaponData != null ? combo.WeaponData.name : null),
+                statContainer);
+            float finalDamage = damageResult.FinalDamage;
 
             // KhiAttackRequest 생성 (가짜 request)
             KhiAttackRequest request = new KhiAttackRequest
             {
-                SequenceId = 0,
+                SequenceId = ++_sequenceId,
                 ComboStep = step.comboStep,
                 AimDirection = aimDir,
                 AimAngleDegrees = Mathf.Atan2(aimDir.y, aimDir.x) * Mathf.Rad2Deg,

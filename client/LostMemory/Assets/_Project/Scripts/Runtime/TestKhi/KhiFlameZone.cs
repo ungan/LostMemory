@@ -72,10 +72,12 @@ namespace LostMemory.TestKhi
         // 멀티: 게스트 owner 측에서 호스트로 데미지 위임. Initialize 시점에 instigator 의 PlayerDamageRelay 1회 캐시.
         // burn DOT 는 EnemyStatusEffect 자체 tick 이므로 본 경로로 sync 안 됨 — 별도 follow-up 필요.
         private PlayerDamageRelay _cachedRelay;
+        private PlayerStatModifierContainer _instigatorStats;
 
         private bool _streaming;
         private FlameMode _activeMode;
         private float _nextTickAt;
+        private int _tickIndex;
 
         private Collider2D[] _hitBuffer;
         private readonly HashSet<Health> _appliedThisTick = new HashSet<Health>();
@@ -104,6 +106,7 @@ namespace LostMemory.TestKhi
             };
             _instigator = instigator;
             _cachedRelay = instigator != null ? instigator.GetComponentInParent<PlayerDamageRelay>() : null;
+            _instigatorStats = instigator != null ? instigator.GetComponentInParent<PlayerStatModifierContainer>() : null;
             _hitBuffer = new Collider2D[maxTargetsPerTick];
         }
 
@@ -122,9 +125,10 @@ namespace LostMemory.TestKhi
 
             ref ModeParams p = ref GetActiveParams();
             _nextTickAt = Time.time + p.tickInterval;
+            _tickIndex++;
 
             float damageThisTick = p.damagePerSec * p.tickInterval;
-            ScanAndApply(damageThisTick, p.burnDamagePerSec, p.burnDuration, GetActiveRange(), GetActiveHalfAngle());
+            ScanAndApply(damageThisTick, p.burnDamagePerSec, p.burnDuration, GetActiveRange(), GetActiveHalfAngle(), _tickIndex);
         }
 
         private ref ModeParams GetActiveParams()
@@ -136,7 +140,7 @@ namespace LostMemory.TestKhi
         private float GetActiveRange() => _activeMode == FlameMode.Secondary ? secondaryRange : range;
         private float GetActiveHalfAngle() => _activeMode == FlameMode.Secondary ? secondaryConeHalfAngleDeg : coneHalfAngleDeg;
 
-        private void ScanAndApply(float directDamage, float burnDps, float burnSec, float useRange, float useHalfAngle)
+        private void ScanAndApply(float directDamage, float burnDps, float burnSec, float useRange, float useHalfAngle, int tickIndex)
         {
             if (_hitBuffer == null) _hitBuffer = new Collider2D[maxTargetsPerTick];
 
@@ -172,13 +176,29 @@ namespace LostMemory.TestKhi
 
                 if (directDamage > 0f)
                 {
+                    CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                        new CombatDamageRequest(
+                            directDamage,
+                            DamageSourceKind.BeamOrStream,
+                            0UL,
+                            sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                            tickIndex: tickIndex,
+                            onHitPolicy: OnHitPolicy.TriggerWithCooldown,
+                            applyAttackPower: true,
+                            onHitCooldownSeconds: 0.5f,
+                            hitDirection: aim,
+                            hitPoint: victim.transform.position,
+                            weaponId: _activeMode == FlameMode.Secondary ? "FlamethrowerSecondary" : "FlamethrowerPrimary"),
+                        _instigatorStats);
+                    float resolvedDirectDamage = damageResult.FinalDamage;
+
                     if (_cachedRelay != null)
                     {
-                        _cachedRelay.RelayDamage(victim, directDamage, _instigator, 0f, 0f, Vector2.zero);
+                        _cachedRelay.RelayDamage(victim, resolvedDirectDamage, _instigator, 0f, 0f, Vector2.zero);
                     }
                     else
                     {
-                        victim.Damage(directDamage, _instigator, 0f, 0f, Vector3.zero);
+                        victim.Damage(resolvedDirectDamage, _instigator, 0f, 0f, Vector3.zero);
                     }
                 }
 

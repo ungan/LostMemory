@@ -182,6 +182,19 @@ combat-damage-refactor
 - `OnHitEffectRegistry.ApplyWindBlade` resolver 경유
 - 필요 시 `KhiParryDamageOnTouch` 분류만 정리
 
+### 현재 구현 상태 (2026-06-25)
+
+- `KhiDaggerTeleportController`의 도착 공격 데미지 계산을 `CombatDamageResolver` 경로로 이동했다.
+- 단검 도착 공격은 `DamageSourceKind.Melee`로 분류하고, sequence id를 공격 단위로 증가시키도록 정리했다.
+- `KhiFlameZone`의 direct tick 데미지 계산을 `CombatDamageResolver` 경로로 이동했다.
+- 화염방사기 direct tick은 `DamageSourceKind.BeamOrStream`으로 분류하고, `OnHitPolicy.TriggerWithCooldown` 및 tick index 정보를 request에 담도록 준비했다.
+- `OnHitEffectRegistry.ApplyChain`과 `ApplyWindBlade`의 추가타 데미지 계산을 `CombatDamageResolver` 경로로 이동했다.
+- Chain/Wind 추가타는 `DamageSourceKind.SubEffect`와 `OnHitPolicy.SuppressSubEffectLoop`로 분류해 추가타가 다시 OnHit 루프를 만들지 않도록 의도를 명확히 했다.
+- Burn DOT, `EnemyStatusEffect` DOT tick, 공통 `CombatDamageResult` event, weapon slot 구조는 이번 브랜치에서 변경하지 않았다.
+- Unity batchmode compile 결과: `Tundra build success`, C# compile error 없음.
+- `CombatDamageResolverAutomation` 실행 결과: 5개 계산 체크 PASS, Unity batchmode return code 0.
+- 참고: batchmode 로그에 Rider 경로 관련 `DirectoryNotFoundException`과 NGO `NetworkAnimator.OnValidate` 관련 `NullReferenceException`이 출력되지만, 현재 combat damage resolver 검증 실패는 아니며 Unity는 return code 0으로 종료했다.
+
 ### 제외
 
 - Burn DOT tick 구조 변경

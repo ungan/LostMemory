@@ -254,10 +254,7 @@ namespace LostMemory.Combat
             _nextChainAllowedAt = Time.time + _chainCooldown;
 
             // 본인 공격력 (StatModifier 합산 적용)
-            float playerAttack = combat.WeaponData != null ? combat.WeaponData.BaseDamage : 0f;
-            if (statContainer != null)
-                playerAttack *= statContainer.GetTotalMultiplier(StatId.AttackPower);
-            float chainDamage = playerAttack * magnitude;
+            float chainDamage = combat.WeaponData != null ? combat.WeaponData.BaseDamage * magnitude : 0f;
             if (chainDamage <= 0f) return;
 
             // CL-146: Range multiplier 적용 — 체인 검색 반경 확장. 상한 200%.
@@ -276,7 +273,19 @@ namespace LostMemory.Combat
                 // PvP 미상정 — chain 후보가 player 면 skip (FindNearbyEnemies 도 가드 있지만 안전벨트).
                 if (CombatTargetable.IsFriendlyPlayer(t)) continue;
                 // 체인 데미지 각 대상별 크리티컬 판정 (평타와 같은 stat 공유).
-                float appliedChainDamage = CriticalRoller.Roll(statContainer, chainDamage, out bool chainCrit);
+                CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                    new CombatDamageRequest(
+                        chainDamage,
+                        DamageSourceKind.SubEffect,
+                        0UL,
+                        sourceId: (ulong)Mathf.Abs(req.SequenceId),
+                        onHitPolicy: OnHitPolicy.SuppressSubEffectLoop,
+                        applyAttackPower: true,
+                        hitPoint: t.transform.position,
+                        weaponId: "ChainOnHit"),
+                    statContainer);
+                float appliedChainDamage = damageResult.FinalDamage;
+                bool chainCrit = damageResult.WasCritical;
                 if (_cachedRelay != null)
                 {
                     _cachedRelay.RelayDamage(t, appliedChainDamage, gameObject, 0f, 0f, Vector2.zero);
@@ -355,10 +364,7 @@ namespace LostMemory.Combat
             float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
 
             // 본인 공격력 (StatModifier 합산)
-            float playerAttack = combat.WeaponData != null ? combat.WeaponData.BaseDamage : 0f;
-            if (statContainer != null)
-                playerAttack *= statContainer.GetTotalMultiplier(StatId.AttackPower);
-            float bladeDamage = playerAttack * magnitude;
+            float bladeDamage = combat.WeaponData != null ? combat.WeaponData.BaseDamage * magnitude : 0f;
             if (bladeDamage <= 0f) return;
 
             int hitCount = 0;
@@ -376,7 +382,20 @@ namespace LostMemory.Combat
                 if (CombatTargetable.IsAuthoritativePlayer(h)) continue;
 
                 // 풍속 검기 — 각 대상별 크리티컬 판정.
-                float appliedBladeDamage = CriticalRoller.Roll(statContainer, bladeDamage, out bool bladeCrit);
+                CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                    new CombatDamageRequest(
+                        bladeDamage,
+                        DamageSourceKind.SubEffect,
+                        0UL,
+                        sourceId: (ulong)Mathf.Abs(victim.GetInstanceID()),
+                        onHitPolicy: OnHitPolicy.SuppressSubEffectLoop,
+                        applyAttackPower: true,
+                        hitDirection: dir,
+                        hitPoint: h.transform.position,
+                        weaponId: "WindBlade"),
+                    statContainer);
+                float appliedBladeDamage = damageResult.FinalDamage;
+                bool bladeCrit = damageResult.WasCritical;
                 if (_cachedRelay != null)
                 {
                     _cachedRelay.RelayDamage(h, appliedBladeDamage, gameObject, 0f, 0f, Vector2.zero);
