@@ -135,6 +135,7 @@ public struct CombatDamageResult
 
     public DamageSourceKind SourceKind;
     public OnHitPolicy OnHitPolicy;
+    public float OnHitCooldownSeconds;
 
     public float FinalDamage;
     public bool WasCritical;

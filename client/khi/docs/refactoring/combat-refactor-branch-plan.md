@@ -74,6 +74,16 @@ combat-damage-refactor
 - `CombatDamageResolver` 추가
 - 기존 `CriticalRoller`는 resolver 내부에서 재사용
 
+### 현재 구현 상태 (2026-06-23)
+
+- `Runtime/Combat/Damage/` 폴더와 Unity `Damage.meta`를 추가했다.
+- `DamageSourceKind`, `CriticalPolicy`, `OnHitPolicy`를 추가했다.
+- `CombatDamageRequest`, `CombatDamageResult`, `CombatDamageResolver`를 추가했다.
+- `CombatDamageResolver.Resolve(...)`는 base damage, `DamageMultiplier`, `AttackPower`, 선택적 `FinisherDamage`, `CriticalRoller.Roll(...)` 순서로 계산한다.
+- `CombatDamageResult`는 result 기반 OnHit 처리를 위해 `OnHitCooldownSeconds`를 보존한다.
+- 기존 검/활/스태프, DOT, OnHit, 네트워크 relay 코드는 아직 연결하지 않았다.
+- 남은 확인: Unity Editor compile, resolver 간단 호출, 기존 무기 smoke test.
+
 ### 제외
 
 - 검/활/스태프 실제 연결
