@@ -29,6 +29,7 @@ namespace LostMemory.MagicalGirl
         private float _pullSpeed;
         private float _slowMagnitude;
         private float _slowDuration;
+        private int _tickIndex;
         private KhiDownController _ownerDownController;
         private readonly HashSet<Health> _hitTargetsThisTick = new HashSet<Health>();
 
@@ -107,6 +108,7 @@ namespace LostMemory.MagicalGirl
             if (IsOwnerActionBlocked()) return;
             if (_damagePerTick <= 0f && _pullSpeed <= 0f && _slowMagnitude <= 0f) return;
             _hitTargetsThisTick.Clear();
+            _tickIndex++;
             int hits = Physics2D.OverlapCircleNonAlloc(transform.position, _radius, _hitBuf);
             for (int i = 0; i < hits; i++)
             {
@@ -123,8 +125,20 @@ namespace LostMemory.MagicalGirl
                     LostMemory.Combat.PlayerStatModifierContainer stats = _ownerDownController != null
                         ? _ownerDownController.GetComponentInParent<LostMemory.Combat.PlayerStatModifierContainer>() : null;
                     // AttackPower 적용 — 평타 패턴 통일. 이전 누락분 fix.
-                    float aoeAttackMul = stats != null ? stats.GetTotalMultiplier(LostMemory.Combat.StatId.AttackPower) : 1f;
-                    float appliedDmg = LostMemory.Combat.CriticalRoller.Roll(stats, _damagePerTick * aoeAttackMul, out bool aoeCrit);
+                    CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                        new CombatDamageRequest(
+                            _damagePerTick,
+                            DamageSourceKind.Area,
+                            0UL,
+                            sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                            tickIndex: _tickIndex,
+                            onHitPolicy: OnHitPolicy.Suppress,
+                            applyAttackPower: true,
+                            hitPoint: h.transform.position,
+                            weaponId: nameof(MagicalGirlAOE)),
+                        stats);
+                    float appliedDmg = damageResult.FinalDamage;
+                    bool aoeCrit = damageResult.WasCritical;
                     h.Damage(appliedDmg, gameObject, 0f, 0f, Vector3.zero);
                     if (LostMemory.UI.DamagePopupSpawner.Instance != null)
                     {

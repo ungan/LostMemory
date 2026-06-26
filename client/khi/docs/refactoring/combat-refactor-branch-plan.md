@@ -44,8 +44,9 @@ combat-damage-refactor
 3. `refactor/combat-damage-missing-sources`
 4. `refactor/combat-dot-damage-source`
 5. `refactor/combat-special-damage-sources`
-6. `refactor/combat-result-onhit-events`
-7. `refactor/weapon-runtime-entries`
+6. `refactor/combat-magical-girl-damage-sources`
+7. `refactor/combat-result-onhit-events`
+8. `refactor/weapon-runtime-entries`
 
 핵심 원칙:
 
@@ -73,7 +74,9 @@ combat-damage-refactor
 조정된 원칙:
 
 - `refactor/combat-dot-damage-source`는 Burn DOT만 처리한다.
-- Parry/MagicalGirl/Tarot은 `refactor/combat-special-damage-sources`로 분리한다.
+- Parry는 `refactor/combat-special-damage-sources`에서 먼저 처리한다.
+- MagicalGirl은 projectile sync, visual-only clone, fusion 로직이 얽혀 있으므로 `refactor/combat-magical-girl-damage-sources`로 분리한다.
+- Tarot은 이후 특수 source 또는 별도 작은 브랜치에서 처리한다.
 - 적/보스가 플레이어에게 주는 damage source는 현재 combat damage resolver 범위에서 제외한다.
 - 이미 resolver로 최종 damage를 계산한 뒤 `Health.Damage(...)`로 적용하는 코드는 누락으로 보지 않는다.
 
@@ -324,6 +327,7 @@ DOT 이후에도 남아 있는 특수 player-origin damage source를 resolver �
 - `KhiParryDamageOnTouch`의 반격 데미지 crit 계산을 `CombatDamageResolver` 경로로 이동했다.
 - 기존 반격 데미지는 이미 감쇠/보호막 처리 후 값이므로 `applyAttackPower: false`로 유지했다.
 - 기존 `PlayerDamageRelay`, `Health.Damage`, knockback, feedback, popup 호출 흐름은 변경하지 않았다.
+- MagicalGirl 계열은 별도 브랜치 `refactor/combat-magical-girl-damage-sources`에서 처리한다.
 
 ### 제외
 
@@ -351,7 +355,62 @@ DOT 이후에도 남아 있는 특수 player-origin damage source를 resolver �
 
 중간 이상. MagicalGirl은 projectile sync, visual-only clone, owner action gate가 얽혀 있으므로 DOT와 분리한다.
 
-## 6. refactor/combat-result-onhit-events
+## 6. refactor/combat-magical-girl-damage-sources
+
+### 목표
+
+MagicalGirl 계열 player-origin damage source를 resolver 경로로 이동한다.
+
+### 포함
+
+- `MagicalGirlProjectile` projectile damage resolver 경유
+- `MagicalGirlAOE` tick damage resolver 경유
+- `MagicalGirlFusion` laser/global AOE resolver 경유
+- `MagicalGirlAI` fallback direct damage resolver 경유
+- 기존 projectile sync, visual-only clone, owner action gate 흐름 유지
+
+### 현재 구현 상태 (2026-06-26)
+
+- `MagicalGirlProjectile`의 발사 시점 damage/crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- projectile은 `DamageSourceKind.Projectile`로 분류하고, 기존처럼 발사 시점에 최종 damage와 crit 여부를 저장한다.
+- `MagicalGirlAOE`의 tick damage 계산을 `CombatDamageResolver` 경로로 이동했다.
+- AOE tick은 `DamageSourceKind.Area`, `OnHitPolicy.Suppress`로 분류한다.
+- AOE tick마다 `tickIndex`를 증가시켜 request에 포함한다.
+- `MagicalGirlFusion`의 laser tick damage를 `CombatDamageResolver` 경로로 이동했다.
+- Fusion laser tick은 `DamageSourceKind.BeamOrStream`, `OnHitPolicy.TriggerWithCooldown`으로 분류한다.
+- Fusion laser tick마다 `tickIndex`를 증가시켜 request에 포함한다.
+- `MagicalGirlFusion`의 global AOE damage를 `CombatDamageResolver` 경로로 이동했다.
+- Fusion global AOE는 `DamageSourceKind.Area`로 분류한다.
+- `MagicalGirlAI` catalog fallback direct damage를 `CombatDamageResolver` 경로로 이동했다.
+- fallback direct damage는 `DamageSourceKind.Summon`으로 분류한다.
+- 기존 `Health.Damage`, popup, slow, pull, visual-only clone, projectile despawn broadcast 흐름은 변경하지 않았다.
+- Tarot Death 카드는 아직 남아 있다.
+
+### 제외
+
+- Tarot Death 카드 변경
+- result 기반 OnHit 이벤트 공통화
+- projectile sync 구조 변경
+
+### 완료 조건
+
+- MagicalGirl projectile/AOE/fusion/fallback damage source가 source kind와 policy를 명시한다.
+- visual-only clone이 damage를 적용하지 않는 기존 규칙이 유지된다.
+- 지속 장판 tick은 crit을 적용하되 OnHit은 발동하지 않는다.
+
+### 테스트
+
+- MagicalGirl projectile crit 확인
+- MagicalGirl AOE tick crit 확인
+- AOE slow/pull 유지 확인
+- visual-only clone damage 미적용 확인
+- Fusion laser/global AOE damage 확인
+
+### 위험도
+
+중간. projectile sync와 visual-only clone은 유지하고 계산 경로만 먼저 바꾼다.
+
+## 7. refactor/combat-result-onhit-events
 
 ### 목표
 
@@ -395,7 +454,7 @@ DOT 이후에도 남아 있는 특수 player-origin damage source를 resolver �
 
 높음. OnHit, popup, analytics, relic 효과가 얽힌다.
 
-## 7. refactor/weapon-runtime-entries
+## 8. refactor/weapon-runtime-entries
 
 ### 목표
 
@@ -492,4 +551,4 @@ refactor/combat-damage-resolver-base
 - 파일 위치는 `Runtime/Combat/Damage/`를 추천한다.
 - `WeaponId`는 초기에 string으로 시작하고, 필요하면 이후 `FixedString` 또는 id table로 바꾼다.
 - `SourceId`는 host/server 생성이 원칙이다. owner visual 예측용 temporary id는 result/onhit 단계에서 검토한다.
-- MagicalGirl/Fusion/Tarot은 Phase 1에서 제외하고, resolver가 안정화된 뒤 source kind별로 편입한다.
+- MagicalGirl/Fusion/Tarot은 resolver가 안정화된 뒤 source kind별로 편입한다.
