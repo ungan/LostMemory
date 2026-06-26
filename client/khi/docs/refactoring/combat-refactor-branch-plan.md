@@ -318,6 +318,13 @@ DOT 이후에도 남아 있는 특수 player-origin damage source를 resolver �
 - `MagicalGirlAI` fallback direct damage resolver 경유
 - `TarotCards.DeathCard`의 crit 정책 결정 및 resolver 경유 여부 확정
 
+### 현재 구현 상태 (2026-06-26)
+
+- `DamageSourceKind.Counter`를 추가했다.
+- `KhiParryDamageOnTouch`의 반격 데미지 crit 계산을 `CombatDamageResolver` 경로로 이동했다.
+- 기존 반격 데미지는 이미 감쇠/보호막 처리 후 값이므로 `applyAttackPower: false`로 유지했다.
+- 기존 `PlayerDamageRelay`, `Health.Damage`, knockback, feedback, popup 호출 흐름은 변경하지 않았다.
+
 ### 제외
 
 - Burn DOT

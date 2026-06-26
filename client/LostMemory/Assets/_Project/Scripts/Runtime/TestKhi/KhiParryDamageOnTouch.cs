@@ -128,7 +128,19 @@ namespace LostMemory.TestKhi
                 _cachedAttackerStatsResolved = true;
             }
             // 패리 반격 데미지에도 크리티컬 판정 (평타와 동일 stat).
-            reducedDamage = LostMemory.Combat.CriticalRoller.Roll(_cachedAttackerStats, reducedDamage, out bool parryCrit);
+            CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    reducedDamage,
+                    DamageSourceKind.Counter,
+                    0UL,
+                    sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                    onHitPolicy: OnHitPolicy.Trigger,
+                    applyAttackPower: false,
+                    hitPoint: health.transform.position,
+                    weaponId: "ParryCounter"),
+                _cachedAttackerStats);
+            reducedDamage = damageResult.FinalDamage;
+            bool parryCrit = damageResult.WasCritical;
             // 게스트 ServerRpc 위임 경로면 CanTakeDamageThisFrame 가드 우회 — 게스트 측 target Health 는 DamageDisabled() 호출됨.
             bool willRelayToServer = _cachedRelay != null && _cachedRelay.IsSpawned && !_cachedRelay.IsServer;
             if (!willRelayToServer && !health.CanTakeDamageThisFrame())

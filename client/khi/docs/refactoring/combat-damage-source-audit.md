@@ -120,6 +120,13 @@ KhiParryDamageOnTouch.ApplyReducedDamage
 - `DamageSourceKind.ParryCounter` 또는 `DamageSourceKind.Counter`
 - `OnHitPolicy.Trigger`
 
+구현 상태 (2026-06-26):
+
+- `DamageSourceKind.Counter`를 추가했다.
+- `KhiParryDamageOnTouch`의 직접 `CriticalRoller.Roll(...)` 호출을 `CombatDamageResolver.Resolve(...)`로 교체했다.
+- 기존 감쇠/보호막 처리 이후의 damage 값을 보존하기 위해 `applyAttackPower: false`로 처리한다.
+- relay/apply/popup 흐름은 유지했다.
+
 권장 순서:
 
 - Burn DOT 이후 별도 특수 source 브랜치에서 처리한다.

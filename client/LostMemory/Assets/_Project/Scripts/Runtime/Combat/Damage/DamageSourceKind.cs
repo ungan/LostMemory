@@ -9,6 +9,7 @@ namespace LostMemory.Combat
         BeamOrStream,
         Summon,
         SubEffect,
+        Counter,
         SelfOrEnvironment
     }
 }
