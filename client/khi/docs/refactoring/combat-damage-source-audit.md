@@ -247,3 +247,21 @@ DeathCard.Activate
 - DOT crit 결과를 어디까지 시각화할지
 - `EnemyStatusEffect.ApplyBurn` 시그니처를 직접 확장할지, 별도 context struct를 만들지
 - host/server authoritative를 이번 브랜치에서 실제 적용할지, 우선 solo/local 구조에서 resolver 경유만 보장할지
+
+## MagicalGirl Implementation Status (2026-06-26)
+
+- `MagicalGirlProjectile` now resolves launch-time damage/crit through `CombatDamageResolver`.
+- Projectile damage is classified as `DamageSourceKind.Projectile`.
+- Existing hit-time `Health.Damage`, popup, visual-only clone, and despawn broadcast behavior is preserved.
+- `MagicalGirlAOE` now resolves per-tick damage through `CombatDamageResolver`.
+- AOE tick damage is classified as `DamageSourceKind.Area` with `OnHitPolicy.Suppress`.
+- AOE tick requests include a monotonically increasing `tickIndex`.
+- Existing slow, pull, popup, and damage application behavior is preserved.
+- `MagicalGirlFusion` laser tick damage now resolves through `CombatDamageResolver`.
+- Fusion laser damage is classified as `DamageSourceKind.BeamOrStream` with `OnHitPolicy.TriggerWithCooldown`.
+- Fusion laser requests include a monotonically increasing `tickIndex`.
+- `MagicalGirlFusion` global AOE damage now resolves through `CombatDamageResolver`.
+- Fusion global AOE damage is classified as `DamageSourceKind.Area`.
+- `MagicalGirlAI` catalog fallback direct damage now resolves through `CombatDamageResolver`.
+- Fallback direct damage is classified as `DamageSourceKind.Summon`.
+- Remaining special source work: Tarot Death card policy.

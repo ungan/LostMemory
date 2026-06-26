@@ -79,6 +79,7 @@ namespace LostMemory.MagicalGirl
         private PlayerStatModifierContainer _stat;
         private KhiMeleeComboController _combat;
         private KhiPlayerAim _aim;
+        private int _laserTickIndex;
         private KhiDownController _ownerDownController;
         private MagicalGirlSpawner _spawner;        // CL-145 Phase 2: cooldown 공유 source
 
@@ -305,9 +306,10 @@ namespace LostMemory.MagicalGirl
                 Vector2 boxSize = new Vector2(laserLength, laserWidth);
                 float angleDeg = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
 
-                float damage = ComputePlayerDamage() * laserDamageRatio;
-                if (damage > 0f)
+                float baseDamage = ComputePlayerDamage() * laserDamageRatio;
+                if (baseDamage > 0f)
                 {
+                    _laserTickIndex++;
                     Collider2D[] hits = Physics2D.OverlapBoxAll(boxCenter, boxSize, angleDeg);
                     foreach (Collider2D col in hits)
                     {
@@ -315,6 +317,21 @@ namespace LostMemory.MagicalGirl
                         Health h = col.GetComponentInParent<Health>();
                         if (!CombatTargetable.CanBeAutoTargetedEnemy(h)) continue;
                         if (!damageBuf.Add(h)) continue;
+                        CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                            new CombatDamageRequest(
+                                baseDamage,
+                                DamageSourceKind.BeamOrStream,
+                                0UL,
+                                sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                                tickIndex: _laserTickIndex,
+                                onHitPolicy: OnHitPolicy.TriggerWithCooldown,
+                                applyAttackPower: false,
+                                onHitCooldownSeconds: laserTickInterval,
+                                hitDirection: dir,
+                                hitPoint: h.transform.position,
+                                weaponId: nameof(MagicalGirlFusion)),
+                            _stat);
+                        float damage = damageResult.FinalDamage;
                         h.Damage(damage, gameObject, 0f, 0f, Vector3.zero);
                         totalHits++;
                     }
@@ -373,9 +390,9 @@ namespace LostMemory.MagicalGirl
             Vector2 size = viewportMax - viewportMin;
             Vector2 center = (viewportMin + viewportMax) * 0.5f;
 
-            float damage = ComputePlayerDamage() * aoeDamageRatio;
+            float baseDamage = ComputePlayerDamage() * aoeDamageRatio;
             int hitCount = 0;
-            if (damage > 0f)
+            if (baseDamage > 0f)
             {
                 Collider2D[] hits = Physics2D.OverlapBoxAll(center, size, 0f);
                 foreach (Collider2D col in hits)
@@ -383,7 +400,19 @@ namespace LostMemory.MagicalGirl
                     if (col == null) continue;
                     Health h = col.GetComponentInParent<Health>();
                     if (!CombatTargetable.CanBeAutoTargetedEnemy(h)) continue;
-                    h.Damage(damage, gameObject, 0f, 0f, Vector3.zero);
+                    CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                        new CombatDamageRequest(
+                            baseDamage,
+                            DamageSourceKind.Area,
+                            0UL,
+                            sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                            onHitPolicy: OnHitPolicy.Trigger,
+                            applyAttackPower: false,
+                            hitPoint: h.transform.position,
+                            weaponId: nameof(MagicalGirlFusion)),
+                        _stat);
+                    float finalDamage = damageResult.FinalDamage;
+                    h.Damage(finalDamage, gameObject, 0f, 0f, Vector3.zero);
                     hitCount++;
                 }
             }
@@ -394,6 +423,7 @@ namespace LostMemory.MagicalGirl
             if (_aoeShockwavePrefab != null)
                 Instantiate(_aoeShockwavePrefab, new Vector3(center.x, center.y, 0f), Quaternion.identity);
 
+            float damage = baseDamage;
             if (_logFusion) Debug.Log($"[Fusion] GlobalAOE → {hitCount} hits, {damage:F1} each");
         }
 

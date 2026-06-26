@@ -217,7 +217,17 @@ namespace LostMemory.MagicalGirl
                 // fallback (placeholder): 기존 CL-144 즉시 데미지
                 // PvP 미상정 — 다른 player 친아군 skip (CanBeAutoTargetedEnemy 는 위에서 통과했지만 안전벨트).
                 if (CombatTargetable.IsFriendlyPlayer(target)) return;
-                target.Damage(damage, gameObject, 0f, 0f, Vector3.zero);
+                CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                    new CombatDamageRequest(
+                        damage,
+                        DamageSourceKind.Summon,
+                        0UL,
+                        sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                        applyAttackPower: false,
+                        hitPoint: target.transform.position,
+                        weaponId: nameof(MagicalGirlAI)),
+                    _playerStat);
+                target.Damage(damageResult.FinalDamage, gameObject, 0f, 0f, Vector3.zero);
             }
 
             StartCoroutine(FlashCoroutine());

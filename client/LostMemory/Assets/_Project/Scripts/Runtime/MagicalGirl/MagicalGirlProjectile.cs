@@ -107,8 +107,19 @@ namespace LostMemory.MagicalGirl
             PlayerStatModifierContainer stats = ownerDownController != null
                 ? ownerDownController.GetComponentInParent<PlayerStatModifierContainer>() : null;
             // AttackPower 적용 — 평타 패턴 통일. 이전 누락분 fix.
-            float attackMul = stats != null ? stats.GetTotalMultiplier(StatId.AttackPower) : 1f;
-            _damage = CriticalRoller.Roll(stats, damage * attackMul, out _wasCritical);
+            CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                new CombatDamageRequest(
+                    damage,
+                    DamageSourceKind.Projectile,
+                    0UL,
+                    sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                    applyAttackPower: true,
+                    hitDirection: direction,
+                    hitPoint: transform.position,
+                    weaponId: nameof(MagicalGirlProjectile)),
+                stats);
+            _damage = damageResult.FinalDamage;
+            _wasCritical = damageResult.WasCritical;
             // 회전: 진행 방향으로 sprite 정렬 (오른쪽 = 0도 기준)
             float angleDeg = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(0f, 0f, angleDeg);
