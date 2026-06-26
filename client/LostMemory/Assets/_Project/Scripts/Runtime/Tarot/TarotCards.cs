@@ -26,8 +26,20 @@ namespace LostMemory.Tarot
                 // PvP 미상정 — 4인 안전벨트: AI 변환된 다른 player 도 제외.
                 if (CombatTargetable.IsFriendlyPlayer(h)) continue;
 
-                float dmg = h.MaximumHealth * damageRatio;
-                h.Damage(dmg, ctx.System != null ? ctx.System.gameObject : null, 0f, 0f, Vector3.zero);
+                GameObject source = ctx.System != null ? ctx.System.gameObject : null;
+                float baseDamage = h.MaximumHealth * damageRatio;
+                CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                    new CombatDamageRequest(
+                        baseDamage,
+                        DamageSourceKind.SubEffect,
+                        0UL,
+                        sourceId: source != null ? (ulong)Mathf.Abs(source.GetInstanceID()) : 0UL,
+                        onHitPolicy: OnHitPolicy.SuppressSubEffectLoop,
+                        applyAttackPower: false,
+                        hitPoint: h.transform.position,
+                        weaponId: nameof(DeathCard)),
+                    ctx.PlayerStats);
+                h.Damage(damageResult.FinalDamage, source, 0f, 0f, Vector3.zero);
                 hit++;
             }
             Debug.Log($"[Tarot/Death] {hit} 적에게 MaxHP {damageRatio * 100f:F0}% 데미지 (mul={ctx.EffectMultiplier:F2})");
