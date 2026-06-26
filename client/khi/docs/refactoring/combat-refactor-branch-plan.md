@@ -45,8 +45,9 @@ combat-damage-refactor
 4. `refactor/combat-dot-damage-source`
 5. `refactor/combat-special-damage-sources`
 6. `refactor/combat-magical-girl-damage-sources`
-7. `refactor/combat-result-onhit-events`
-8. `refactor/weapon-runtime-entries`
+7. `refactor/combat-tarot-damage-source`
+8. `refactor/combat-result-onhit-events`
+9. `refactor/weapon-runtime-entries`
 
 핵심 원칙:
 
@@ -76,7 +77,7 @@ combat-damage-refactor
 - `refactor/combat-dot-damage-source`는 Burn DOT만 처리한다.
 - Parry는 `refactor/combat-special-damage-sources`에서 먼저 처리한다.
 - MagicalGirl은 projectile sync, visual-only clone, fusion 로직이 얽혀 있으므로 `refactor/combat-magical-girl-damage-sources`로 분리한다.
-- Tarot은 이후 특수 source 또는 별도 작은 브랜치에서 처리한다.
+- Tarot Death 카드는 `refactor/combat-tarot-damage-source`에서 별도 처리한다.
 - 적/보스가 플레이어에게 주는 damage source는 현재 combat damage resolver 범위에서 제외한다.
 - 이미 resolver로 최종 damage를 계산한 뒤 `Health.Damage(...)`로 적용하는 코드는 누락으로 보지 않는다.
 
@@ -384,7 +385,7 @@ MagicalGirl 계열 player-origin damage source를 resolver 경로로 이동한�
 - `MagicalGirlAI` catalog fallback direct damage를 `CombatDamageResolver` 경로로 이동했다.
 - fallback direct damage는 `DamageSourceKind.Summon`으로 분류한다.
 - 기존 `Health.Damage`, popup, slow, pull, visual-only clone, projectile despawn broadcast 흐름은 변경하지 않았다.
-- Tarot Death 카드는 아직 남아 있다.
+- Tarot Death 카드는 별도 브랜치 `refactor/combat-tarot-damage-source`에서 처리한다.
 
 ### 제외
 
@@ -410,7 +411,52 @@ MagicalGirl 계열 player-origin damage source를 resolver 경로로 이동한�
 
 중간. projectile sync와 visual-only clone은 유지하고 계산 경로만 먼저 바꾼다.
 
-## 7. refactor/combat-result-onhit-events
+## 7. refactor/combat-tarot-damage-source
+
+### 목표
+
+Tarot Death 카드의 MaxHP 비율 damage를 resolver 경로로 이동하고 crit/OnHit 정책을 명확히 한다.
+
+### 포함
+
+- `TarotCards.DeathCard` damage resolver 경유
+- Death 카드 crit 적용
+- Death 카드 OnHit 루프 억제
+- `TarotContext`에 player stat context 전달
+
+### 현재 구현 상태 (2026-06-27)
+
+- `TarotContext`에 `PlayerStats`를 추가했다.
+- `TarotSystem`이 `KhiMeleeComboController` 기준으로 `PlayerStatModifierContainer`를 resolve해 context에 전달한다.
+- `DeathCard`의 MaxHP 비율 damage를 `CombatDamageResolver` 경로로 이동했다.
+- Death 카드는 `DamageSourceKind.SubEffect`, `OnHitPolicy.SuppressSubEffectLoop`로 분류한다.
+- Death 카드의 기존 MaxHP 비율 damage는 이미 최종 base damage 성격이므로 `applyAttackPower: false`로 유지한다.
+- 기존 target 필터링과 `Health.Damage` 적용 흐름은 유지한다.
+
+### 제외
+
+- Healing/Reroll 카드 변경
+- Tarot 발동 조건 변경
+- result 기반 OnHit 이벤트 공통화
+- popup 추가
+
+### 완료 조건
+
+- Death 카드 damage가 resolver를 통과한다.
+- Death 카드 crit이 player stat 기준으로 적용된다.
+- Death 카드 damage가 OnHit 재귀 루프를 만들지 않는다.
+
+### 테스트
+
+- Death 카드 발동 시 적에게 damage 적용 확인
+- crit stat이 있을 때 Death 카드 crit 적용 확인
+- Tarot 발동 이후 OnHit 루프가 생기지 않는지 확인
+
+### 위험도
+
+낮음~중간. MaxHP 비율 damage에 crit이 추가되므로 밸런스 수치는 올라갈 수 있다.
+
+## 8. refactor/combat-result-onhit-events
 
 ### 목표
 
@@ -454,7 +500,7 @@ MagicalGirl 계열 player-origin damage source를 resolver 경로로 이동한�
 
 높음. OnHit, popup, analytics, relic 효과가 얽힌다.
 
-## 8. refactor/weapon-runtime-entries
+## 9. refactor/weapon-runtime-entries
 
 ### 목표
 

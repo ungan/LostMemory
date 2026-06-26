@@ -264,4 +264,7 @@ DeathCard.Activate
 - Fusion global AOE damage is classified as `DamageSourceKind.Area`.
 - `MagicalGirlAI` catalog fallback direct damage now resolves through `CombatDamageResolver`.
 - Fallback direct damage is classified as `DamageSourceKind.Summon`.
-- Remaining special source work: Tarot Death card policy.
+- Tarot Death card now resolves MaxHP ratio damage through `CombatDamageResolver`.
+- Death card damage is classified as `DamageSourceKind.SubEffect` with `OnHitPolicy.SuppressSubEffectLoop`.
+- Death card keeps `applyAttackPower: false` because its base value already comes from target MaxHP ratio.
+- Death card crit uses the player stat context passed through `TarotContext.PlayerStats`.

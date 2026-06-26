@@ -1,4 +1,5 @@
 using LostMemory.Rewards;
+using LostMemory.Combat;
 using MoreMountains.TopDownEngine;
 
 namespace LostMemory.Tarot
@@ -10,6 +11,7 @@ namespace LostMemory.Tarot
     {
         public TarotSystem System;
         public Health PlayerHealth;
+        public PlayerStatModifierContainer PlayerStats;
         public RewardPanelView RewardPanel;
         /// <summary>0f = base, 1.0f = 효과 2배. TarotEffectMultiplier 효과로 SetEffectMultiplier(mag).</summary>
         public float EffectMultiplier;

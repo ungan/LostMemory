@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LostMemory.Combat;
 using LostMemory.Data;
 using LostMemory.Relics;
 using LostMemory.Rewards;
@@ -28,6 +29,9 @@ namespace LostMemory.Tarot
 
         [Tooltip("Player 의 TDE Health. 회복/적 제외 판별 용도.")]
         [SerializeField] private Health playerHealth;
+
+        [Tooltip("Player stat container. Death card crit lookup.")]
+        [SerializeField] private PlayerStatModifierContainer playerStats;
 
         [Tooltip("RewardPanelView. 재추첨 카드 발화 대상.")]
         [SerializeField] private RewardPanelView rewardPanelView;
@@ -118,11 +122,23 @@ namespace LostMemory.Tarot
             {
                 System = this,
                 PlayerHealth = playerHealth,
+                PlayerStats = ResolvePlayerStats(),
                 RewardPanel = rewardPanelView,
                 EffectMultiplier = _effectMultiplier,
             };
             if (_logTarot) Debug.Log($"[Tarot] PROC! 카드 = {card.Id} (threshold {threshold} 도달)");
             card.Activate(ctx);
+        }
+
+        private PlayerStatModifierContainer ResolvePlayerStats()
+        {
+            if (playerStats != null) return playerStats;
+            if (meleeController == null) return null;
+
+            playerStats = meleeController.GetComponent<PlayerStatModifierContainer>()
+                          ?? meleeController.GetComponentInParent<PlayerStatModifierContainer>()
+                          ?? meleeController.GetComponentInChildren<PlayerStatModifierContainer>(true);
+            return playerStats;
         }
     }
 }
