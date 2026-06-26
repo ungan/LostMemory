@@ -357,6 +357,8 @@ namespace LostMemory.TestKhi
                 {
                     Health hit = _hitsThisSample[i];
                     TargetHit?.Invoke(sampleRequest, step, hit, finalDamage, wasCritical);
+                    CombatDamageEventDispatcher.RaiseDamageApplied(
+                        new CombatDamageEvent(damageResult, hit, sampleRequest.Attacker));
                     // CL-107: 본 hit 으로 사망한 적 → EnemyKilledByPlayer 발화 (붉은송곳니용).
                     if (hit != null && hit.CurrentHealth <= 0f)
                     {

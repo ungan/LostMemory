@@ -462,6 +462,15 @@ Tarot Death 카드의 MaxHP 비율 damage를 resolver 경로로 이동하고 cri
 
 근접 전용 `TargetHit` 중심의 OnHit/popup 흐름을 공통 `CombatDamageResult` 이벤트 기반으로 이동하기 시작한다.
 
+### 현재 구현 상태 (2026-06-27)
+
+- `combat-result-onhit-events-implementation-map.md`를 추가했다.
+- 현재 OnHit 흐름이 `KhiMeleeComboController.TargetHit`에 묶여 있음을 확인했다.
+- 첫 구현 단계는 dispatcher 타입 추가와 melee hit의 복제 발행으로 정했다.
+- `CombatDamageEvent`와 `CombatDamageEventDispatcher`를 추가했다.
+- `KhiMeleeComboController`가 기존 `TargetHit`을 유지하면서 `CombatDamageEventDispatcher.RaiseDamageApplied(...)`를 같이 호출하도록 연결했다.
+- `OnHitEffectRegistry` 이전, projectile/area source 연결, popup 공통화는 후속 커밋으로 나눈다.
+
 ### 포함
 
 - `CombatDamageResult` event 또는 dispatcher 추가
