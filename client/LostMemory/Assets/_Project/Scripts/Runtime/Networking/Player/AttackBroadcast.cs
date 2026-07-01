@@ -284,15 +284,36 @@ namespace LostMemory.Networking.Player
         /// 게스트의 owner projectile 이 적과 충돌 시 호출. server 가 enemy.Health.Damage 권위 호출.
         /// host 의 owner projectile 은 직접 호출하므로 본 메서드 호출 안 함.
         /// </summary>
-        public void RelayProjectileDamage(ulong enemyNetObjId, float damage, float flickerDuration, float invincibilityDuration, Vector2 direction)
+        public void RelayProjectileDamage(
+            ulong enemyNetObjId,
+            float damage,
+            float flickerDuration,
+            float invincibilityDuration,
+            Vector2 direction,
+            bool wasCritical = false,
+            int projectileId = 0)
         {
             if (!IsOwner) return;
             if (damage <= 0f) return;
-            RelayProjectileDamageServerRpc(enemyNetObjId, damage, flickerDuration, invincibilityDuration, direction);
+            RelayProjectileDamageServerRpc(
+                enemyNetObjId,
+                damage,
+                flickerDuration,
+                invincibilityDuration,
+                direction,
+                wasCritical,
+                projectileId);
         }
 
         [ServerRpc]
-        private void RelayProjectileDamageServerRpc(ulong enemyNetObjId, float damage, float flickerDuration, float invincibilityDuration, Vector2 direction)
+        private void RelayProjectileDamageServerRpc(
+            ulong enemyNetObjId,
+            float damage,
+            float flickerDuration,
+            float invincibilityDuration,
+            Vector2 direction,
+            bool wasCritical,
+            int projectileId)
         {
             var nm = NetworkManager.Singleton;
             if (nm == null || !nm.SpawnManager.SpawnedObjects.TryGetValue(enemyNetObjId, out var netObj))
@@ -316,6 +337,20 @@ namespace LostMemory.Networking.Player
             // server-side direct Damage — host 측 enemy.Health 는 DamageDisabled 호출 안 되어 정상 Invulnerable=false.
             // attacker = 본 AttackBroadcast 의 player root GameObject (server 측의 게스트 player NetworkObject instance).
             health.Damage(damage, gameObject, flickerDuration, invincibilityDuration, new Vector3(direction.x, direction.y, 0f));
+            ulong sourceId = projectileId > 0 ? (ulong)projectileId : 0UL;
+            var request = new CombatDamageRequest(
+                damage,
+                DamageSourceKind.Projectile,
+                enemyNetObjId,
+                attackerNetworkObjectId: NetworkObjectId,
+                sourceId: sourceId,
+                criticalPolicy: CriticalPolicy.Never,
+                applyAttackPower: false,
+                hitDirection: direction,
+                hitPoint: health.transform.position,
+                weaponId: "Projectile");
+            var result = new CombatDamageResult(request, damage, wasCritical, health.CurrentHealth <= 0f);
+            CombatDamageEventDispatcher.RaiseDamageApplied(new CombatDamageEvent(result, health, gameObject));
             if (verboseLog) Debug.Log($"[AttackBroadcast] DamageRequest applied: enemyNetObjId={enemyNetObjId} dmg={damage} attacker={gameObject.name}", this);
         }
 

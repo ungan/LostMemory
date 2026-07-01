@@ -176,11 +176,11 @@ namespace LostMemory.TestKhi
 
                 if (directDamage > 0f)
                 {
-                    CombatDamageResult damageResult = CombatDamageResolver.Resolve(
-                        new CombatDamageRequest(
+                    var damageRequest = new CombatDamageRequest(
                             directDamage,
                             DamageSourceKind.BeamOrStream,
-                            0UL,
+                            ResolveNetworkObjectId(victim),
+                            attackerNetworkObjectId: ResolveNetworkObjectId(_instigator),
                             sourceId: (ulong)Mathf.Abs(GetInstanceID()),
                             tickIndex: tickIndex,
                             onHitPolicy: OnHitPolicy.TriggerWithCooldown,
@@ -188,7 +188,9 @@ namespace LostMemory.TestKhi
                             onHitCooldownSeconds: 0.5f,
                             hitDirection: aim,
                             hitPoint: victim.transform.position,
-                            weaponId: _activeMode == FlameMode.Secondary ? "FlamethrowerSecondary" : "FlamethrowerPrimary"),
+                            weaponId: _activeMode == FlameMode.Secondary ? "FlamethrowerSecondary" : "FlamethrowerPrimary");
+                    CombatDamageResult damageResult = CombatDamageResolver.Resolve(
+                        damageRequest,
                         _instigatorStats);
                     float resolvedDirectDamage = damageResult.FinalDamage;
 
@@ -200,6 +202,14 @@ namespace LostMemory.TestKhi
                     {
                         victim.Damage(resolvedDirectDamage, _instigator, 0f, 0f, Vector3.zero);
                     }
+
+                    var appliedResult = new CombatDamageResult(
+                        damageRequest,
+                        resolvedDirectDamage,
+                        damageResult.WasCritical,
+                        victim.CurrentHealth <= 0f);
+                    CombatDamageEventDispatcher.RaiseDamageApplied(
+                        new CombatDamageEvent(appliedResult, victim, _instigator));
                 }
 
                 if (burnDps > 0f && burnSec > 0f)
@@ -228,6 +238,28 @@ namespace LostMemory.TestKhi
             Vector3 worldPos = cam.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, -cam.transform.position.z));
             Vector2 dir = (Vector2)worldPos - origin;
             return dir.sqrMagnitude > Mathf.Epsilon ? dir.normalized : Vector2.right;
+        }
+
+        private static ulong ResolveNetworkObjectId(Component component)
+        {
+            if (component == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = component.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
+        }
+
+        private static ulong ResolveNetworkObjectId(GameObject gameObject)
+        {
+            if (gameObject == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = gameObject.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
         }
 
 #if UNITY_EDITOR

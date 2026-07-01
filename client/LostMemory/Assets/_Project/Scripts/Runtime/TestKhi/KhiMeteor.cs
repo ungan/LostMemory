@@ -318,6 +318,7 @@ namespace LostMemory.TestKhi
                 {
                     health.Damage(damage, _attacker, targetFlickerDuration, targetInvincibilityDuration, Vector2.up);
                 }
+                RaiseAreaDamageApplied(health, Vector2.up);
                 // 본인 발동 메테오 → popup. Detonate 시 결정된 _wasCritical 적용.
                 if (LostMemory.UI.DamagePopupSpawner.Instance != null)
                 {
@@ -334,6 +335,50 @@ namespace LostMemory.TestKhi
         {
             if (attacker == null || health == null) return false;
             return health.gameObject == attacker || health.transform.IsChildOf(attacker.transform);
+        }
+
+        private void RaiseAreaDamageApplied(Health target, Vector2 direction)
+        {
+            if (target == null || damage <= 0f)
+            {
+                return;
+            }
+
+            var request = new CombatDamageRequest(
+                damage,
+                DamageSourceKind.Area,
+                ResolveNetworkObjectId(target),
+                attackerNetworkObjectId: ResolveNetworkObjectId(_attacker),
+                sourceId: (ulong)Mathf.Abs(GetInstanceID()),
+                criticalPolicy: CriticalPolicy.Never,
+                applyAttackPower: false,
+                hitDirection: direction,
+                hitPoint: target.transform.position,
+                weaponId: "Meteor");
+            var result = new CombatDamageResult(request, damage, _wasCritical, target.CurrentHealth <= 0f);
+            CombatDamageEventDispatcher.RaiseDamageApplied(new CombatDamageEvent(result, target, _attacker));
+        }
+
+        private static ulong ResolveNetworkObjectId(Component component)
+        {
+            if (component == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = component.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
+        }
+
+        private static ulong ResolveNetworkObjectId(GameObject gameObject)
+        {
+            if (gameObject == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = gameObject.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
         }
     }
 }
