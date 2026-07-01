@@ -257,8 +257,9 @@ namespace LostMemory.TestKhi
             CombatDamageResult damageResult = CombatDamageResolver.Resolve(
                 new CombatDamageRequest(
                     combo.WeaponData.BaseDamage * step.damageMultiplier,
-                    DamageSourceKind.Melee,
+                    DamageSourceKind.Area,
                     0UL,
+                    sequenceId: _sequenceId + 1,
                     sourceId: (ulong)(_sequenceId + 1),
                     applyAttackPower: true,
                     hitDirection: aimDir,
@@ -281,12 +282,66 @@ namespace LostMemory.TestKhi
 
             _alreadyHit.Clear();
             hitbox.Sample(request, step, combo.WeaponData.GlobalHitboxPostRotationOffset, finalDamage, _alreadyHit, _hitsThisSample);
+            for (int i = 0; i < _hitsThisSample.Count; i++)
+            {
+                RaiseTeleportDamageApplied(_hitsThisSample[i], finalDamage, damageResult.WasCritical, request.SequenceId, aimDir);
+            }
         }
 
         private IEnumerator EnableDamageLater()
         {
             yield return new WaitForSeconds(invulnerabilityDuration);
             if (health != null) health.DamageEnabled();
+        }
+
+        private void RaiseTeleportDamageApplied(
+            Health target,
+            float finalDamage,
+            bool wasCritical,
+            int sequenceId,
+            Vector2 direction)
+        {
+            if (target == null || finalDamage <= 0f)
+            {
+                return;
+            }
+
+            var request = new CombatDamageRequest(
+                finalDamage,
+                DamageSourceKind.Area,
+                ResolveNetworkObjectId(target),
+                attackerNetworkObjectId: ResolveNetworkObjectId(gameObject),
+                sourceId: (ulong)sequenceId,
+                sequenceId: sequenceId,
+                criticalPolicy: CriticalPolicy.Never,
+                applyAttackPower: false,
+                hitDirection: direction,
+                hitPoint: target.transform.position,
+                weaponId: combo != null && combo.WeaponData != null ? combo.WeaponData.name : "DaggerTeleport");
+            var result = new CombatDamageResult(request, finalDamage, wasCritical, target.CurrentHealth <= 0f);
+            CombatDamageEventDispatcher.RaiseDamageApplied(new CombatDamageEvent(result, target, gameObject));
+        }
+
+        private static ulong ResolveNetworkObjectId(Component component)
+        {
+            if (component == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = component.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
+        }
+
+        private static ulong ResolveNetworkObjectId(GameObject gameObject)
+        {
+            if (gameObject == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = gameObject.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
         }
     }
 }

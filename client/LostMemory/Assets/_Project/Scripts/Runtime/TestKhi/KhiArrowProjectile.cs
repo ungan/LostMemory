@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LostMemory.Combat;
 using LostMemory.Networking.Player;
 using LostMemory.UI;
 using MoreMountains.TopDownEngine;
@@ -384,7 +385,14 @@ namespace LostMemory.TestKhi
                     Unity.Netcode.NetworkObject netObj = health.GetComponentInParent<Unity.Netcode.NetworkObject>();
                     if (netObj != null && netObj.IsSpawned)
                     {
-                        _despawnBroadcaster.RelayProjectileDamage(netObj.NetworkObjectId, _damage, targetFlickerDuration, targetInvincibilityDuration, _direction);
+                        _despawnBroadcaster.RelayProjectileDamage(
+                            netObj.NetworkObjectId,
+                            _damage,
+                            targetFlickerDuration,
+                            targetInvincibilityDuration,
+                            _direction,
+                            _wasCritical,
+                            _projectileId);
                         if (diag) Debug.Log($"[Projectile {name}] hit {other.name}(L:{lname}) → damage {_damage} RELAY (client→server NetObjId={netObj.NetworkObjectId})");
                     }
                     else if (diag)
@@ -396,6 +404,7 @@ namespace LostMemory.TestKhi
                 {
                     // host owner 또는 solo (broadcaster=null) — server-side direct.
                     health.Damage(_damage, _attacker, targetFlickerDuration, targetInvincibilityDuration, _direction);
+                    RaiseProjectileDamageApplied(health);
                     if (diag) Debug.Log($"[Projectile {name}] hit {other.name}(L:{lname}) → damage {_damage} APPLIED (server/solo)");
                 }
 
@@ -546,6 +555,59 @@ namespace LostMemory.TestKhi
         {
             if (health == null) return false;
             return health.GetComponentInParent<PlayerHealthSync>() != null;
+        }
+
+        private void RaiseProjectileDamageApplied(Health target)
+        {
+            if (target == null || _damage <= 0f)
+            {
+                return;
+            }
+
+            ulong sourceId = _projectileId > 0
+                ? (ulong)_projectileId
+                : (ulong)Mathf.Abs(GetInstanceID());
+            var request = new CombatDamageRequest(
+                _damage,
+                DamageSourceKind.Projectile,
+                ResolveNetworkObjectId(target),
+                attackerNetworkObjectId: ResolveNetworkObjectId(_attacker),
+                sourceId: sourceId,
+                criticalPolicy: CriticalPolicy.Never,
+                applyAttackPower: false,
+                hitDirection: _direction,
+                hitPoint: target.transform.position,
+                weaponId: ResolveWeaponId());
+            var result = new CombatDamageResult(request, _damage, _wasCritical, target.CurrentHealth <= 0f);
+            CombatDamageEventDispatcher.RaiseDamageApplied(new CombatDamageEvent(result, target, _attacker));
+        }
+
+        private string ResolveWeaponId()
+        {
+            string projectileName = string.IsNullOrWhiteSpace(name) ? "Projectile" : name;
+            return projectileName.Replace("(Clone)", string.Empty).Trim();
+        }
+
+        private static ulong ResolveNetworkObjectId(Component component)
+        {
+            if (component == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = component.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
+        }
+
+        private static ulong ResolveNetworkObjectId(GameObject gameObject)
+        {
+            if (gameObject == null)
+            {
+                return 0UL;
+            }
+
+            var networkObject = gameObject.GetComponentInParent<Unity.Netcode.NetworkObject>();
+            return networkObject != null && networkObject.IsSpawned ? networkObject.NetworkObjectId : 0UL;
         }
     }
 }
