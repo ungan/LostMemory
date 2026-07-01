@@ -190,6 +190,14 @@ CombatDamageEventDispatcher
 - DOT/sub effect는 OnHit을 발동하지 않는다.
 - chain/wind 재귀 루프가 생기지 않는다.
 
+구현 상태 (2026-07-01):
+
+- `OnHitEffectRegistry`가 `CombatDamageEventDispatcher.DamageApplied`를 구독한다.
+- 기존 `KhiMeleeComboController.TargetHit` 구독은 제거했다.
+- melee popup 표시는 기존처럼 `OnHitEffectRegistry`에서 유지하되, `DamageSourceKind.Melee`에만 반응한다.
+- `OnHitPolicy.Suppress`와 `SuppressSubEffectLoop`은 OnHit 발동을 차단한다.
+- `OnHitPolicy.TriggerWithCooldown`은 source/target/weapon key 기준 cooldown을 적용한다.
+
 ### 4단계: projectile/area source 발행 추가
 
 목표:

@@ -469,7 +469,10 @@ Tarot Death 카드의 MaxHP 비율 damage를 resolver 경로로 이동하고 cri
 - 첫 구현 단계는 dispatcher 타입 추가와 melee hit의 복제 발행으로 정했다.
 - `CombatDamageEvent`와 `CombatDamageEventDispatcher`를 추가했다.
 - `KhiMeleeComboController`가 기존 `TargetHit`을 유지하면서 `CombatDamageEventDispatcher.RaiseDamageApplied(...)`를 같이 호출하도록 연결했다.
-- `OnHitEffectRegistry` 이전, projectile/area source 연결, popup 공통화는 후속 커밋으로 나눈다.
+- `OnHitEffectRegistry`가 `KhiMeleeComboController.TargetHit` 대신 `CombatDamageEventDispatcher.DamageApplied`를 구독하도록 이전했다.
+- `OnHitPolicy.Suppress`와 `OnHitPolicy.SuppressSubEffectLoop`은 OnHit 발동을 차단한다.
+- `OnHitPolicy.TriggerWithCooldown`은 source/target/weapon key 기준 cooldown을 적용한다.
+- projectile/area source 연결, popup 공통화는 후속 커밋으로 나눈다.
 
 ### 포함
 

@@ -25,7 +25,7 @@ namespace LostMemory.Combat
     /// 적 측 Status (Slow/Freeze) 는 EnemyStatusEffect 컴포넌트가 처리. OnHit 시 victim 의
     /// EnemyStatusEffect 를 GetOrAdd (없으면 자동 부착) 후 위임.
     ///
-    /// 체인 무한 루프 방지: combat.TargetHit 만 구독, 체인은 Health.Damage 직접 호출
+    /// 체인 무한 루프 방지: CombatDamageEventDispatcher 를 구독하되, 체인은 Health.Damage 직접 호출
     /// (TargetHit 안 발화) → 자체 트리거 X.
     /// </summary>
     [DisallowMultipleComponent]
@@ -119,6 +119,7 @@ namespace LostMemory.Combat
         private float _nextChainAllowedAt;
         // 멀티: 게스트 owner 측에서 호스트로 데미지 위임 (Chain / WindBlade). OnEnable 시 1회 캐시.
         private PlayerDamageRelay _cachedRelay;
+        private readonly Dictionary<string, float> _nextOnHitAllowedByCooldownKey = new();
 
         // 체인 검색 임시 버퍼 (heap alloc 방지)
         private static readonly Collider2D[] _chainBuf = new Collider2D[16];
@@ -132,13 +133,12 @@ namespace LostMemory.Combat
             }
             KhiPlayerActionGate.TryResolveDownController(this, out downController);
             if (_cachedRelay == null) _cachedRelay = GetComponentInParent<PlayerDamageRelay>();
-            combat.TargetHit += HandleHit;
+            CombatDamageEventDispatcher.DamageApplied += HandleDamageApplied;
         }
 
         private void OnDisable()
         {
-            if (combat == null) return;
-            combat.TargetHit -= HandleHit;
+            CombatDamageEventDispatcher.DamageApplied -= HandleDamageApplied;
         }
 
         // ── 등록 API (SetEffectApplicator 가 호출) ──────────
@@ -190,17 +190,21 @@ namespace LostMemory.Combat
 
         // ── 메인 디스패처 ───────────────────────────────────
 
-        private void HandleHit(KhiAttackRequest req, AttackStepData step, Health victim, float finalDamage, bool wasCritical)
+        private void HandleDamageApplied(CombatDamageEvent damageEvent)
         {
+            CombatDamageResult result = damageEvent.Result;
+            Health victim = damageEvent.Target;
+
             // 평타 본 데미지 popup — 호스트 게스트 모두 본인 hit 흐름에서만 발화하므로 owner 체크 불필요.
-            if (DamagePopupSpawner.Instance != null)
+            if (result.SourceKind == DamageSourceKind.Melee && DamagePopupSpawner.Instance != null)
             {
-                DamagePopupSpawner.Instance.NotifyMeleeDamage(victim, finalDamage, wasCritical);
+                DamagePopupSpawner.Instance.NotifyMeleeDamage(victim, result.FinalDamage, result.WasCritical);
             }
 
             if (!HostAuthority.IsHost) return;
             if (KhiPlayerActionGate.IsBlocked(downController)) return;
             if (victim == null) return;
+            if (!ShouldTriggerOnHit(damageEvent)) return;
 
             foreach (OnHitEntry e in _entries)
             {
@@ -208,11 +212,57 @@ namespace LostMemory.Combat
                 {
                     case RelicEffectType.SlowOnHit:    ApplySlow(victim, e.Magnitude); break;
                     case RelicEffectType.FreezeOnHit:  ApplyFreeze(victim, e.Magnitude); break;
-                    case RelicEffectType.ChainOnHit:   ApplyChain(req, step, victim, e.Magnitude); break;
+                    case RelicEffectType.ChainOnHit:   ApplyChain(damageEvent, victim, e.Magnitude); break;
                     case RelicEffectType.BurnOnHit:    ApplyBurn(victim, e.Magnitude, e.Duration); break;
                     case RelicEffectType.WindAOE:      ApplyWindBlade(victim, e.Magnitude); break;
                 }
             }
+        }
+
+        private bool ShouldTriggerOnHit(CombatDamageEvent damageEvent)
+        {
+            CombatDamageResult result = damageEvent.Result;
+            switch (result.OnHitPolicy)
+            {
+                case OnHitPolicy.Suppress:
+                case OnHitPolicy.SuppressSubEffectLoop:
+                    return false;
+                case OnHitPolicy.TriggerWithCooldown:
+                    return TryConsumeOnHitCooldown(damageEvent);
+                case OnHitPolicy.Trigger:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private bool TryConsumeOnHitCooldown(CombatDamageEvent damageEvent)
+        {
+            float cooldown = damageEvent.Result.OnHitCooldownSeconds;
+            if (cooldown <= 0f) return true;
+
+            string key = BuildOnHitCooldownKey(damageEvent);
+            float now = Time.time;
+            if (_nextOnHitAllowedByCooldownKey.TryGetValue(key, out float nextAllowedAt)
+                && now < nextAllowedAt)
+            {
+                return false;
+            }
+
+            _nextOnHitAllowedByCooldownKey[key] = now + cooldown;
+            return true;
+        }
+
+        private static string BuildOnHitCooldownKey(CombatDamageEvent damageEvent)
+        {
+            CombatDamageResult result = damageEvent.Result;
+            string sourceKey = result.SourceId != 0UL
+                ? result.SourceId.ToString()
+                : (damageEvent.Attacker != null ? Mathf.Abs(damageEvent.Attacker.GetInstanceID()).ToString() : "0");
+            string targetKey = result.TargetNetworkObjectId != 0UL
+                ? result.TargetNetworkObjectId.ToString()
+                : (damageEvent.Target != null ? Mathf.Abs(damageEvent.Target.GetInstanceID()).ToString() : "0");
+            return $"{sourceKey}:{targetKey}:{result.SourceKind}:{result.WeaponId}";
         }
 
         // ── 효과 처리 ───────────────────────────────────────
@@ -248,7 +298,7 @@ namespace LostMemory.Combat
                 Debug.Log($"[OnHit] Freeze for {effectiveSeconds}s → {victim.name}");
         }
 
-        private void ApplyChain(KhiAttackRequest req, AttackStepData step, Health victim, float magnitude)
+        private void ApplyChain(CombatDamageEvent damageEvent, Health victim, float magnitude)
         {
             if (Time.time < _nextChainAllowedAt) return;
             _nextChainAllowedAt = Time.time + _chainCooldown;
@@ -278,7 +328,7 @@ namespace LostMemory.Combat
                         chainDamage,
                         DamageSourceKind.SubEffect,
                         0UL,
-                        sourceId: (ulong)Mathf.Abs(req.SequenceId),
+                        sourceId: damageEvent.Result.SourceId,
                         onHitPolicy: OnHitPolicy.SuppressSubEffectLoop,
                         applyAttackPower: true,
                         hitPoint: t.transform.position,
